@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DIAGONAL</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+<style>
+  body { margin:0; font-family:sans-serif; background:#0b0d10; color:#eaeaea; display:flex; justify-content:center; align-items:center; height:100vh; }
+  .hidden { display:none; }
+  .container { width:90%; max-width:400px; }
+  .title { text-align:center; font-size:2em; margin-bottom:20px; }
+  .bar { width:100%; padding:12px; margin:10px 0; border-radius:25px; border:none; font-size:1em; cursor:pointer; }
+  .green { background:#33d17a; color:white; }
+  .red { background:#e5533d; color:white; }
+  .input-bar { background:#12151a; color:white; padding:12px 15px; border-radius:25px; border:10px; width:100%; box-sizing:border-box; }
+  .chat-card { background:#2a2c30; border-radius:15px; max-height:300px; overflow-y:auto; padding:10px; margin-top:20px; }
+  .chat-bar { background:#33d17a; color:white; border-radius:15px; padding:10px; margin:5px 0; display:flex; justify-content:space-between; cursor:pointer; }
+  .red-bar { background:#e5533d; color:white; border-radius:15px; padding:10px; margin:5px 0; display:flex; justify-content:space-between; }
+  .dot { height:10px; width:10px; border-radius:50%; display:inline-block; margin-left:10px; }
+  .online { background:green; }
+  .offline { background:grey; }
+  .chat-bubble { padding:10px; border-radius:15px; margin:5px; max-width:70%; word-wrap:break-word; }
+  .chat-you { background:#33d17a; align-self:flex-end; color:white; }
+  .chat-other { background:#e5533d; align-self:flex-start; color:white; }
+  .chat-container { display:flex; flex-direction:column; overflow-y:auto; height:300px; margin-bottom:10px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Welcome Page -->
+<div id="welcomePage">
+  <div class="title">Welcome</div>
+  <button class="bar green" id="toLogin">Login</button>
+  <div style="text-align:center; margin:10px 0;">Or</div>
+  <button type="button" class="bar red" id="toRegister">Register</button>
+</div>
+
+<!-- Login Page -->
+<div id="loginPage" class="hidden">
+  <input type="text" id="loginUser" class="input-bar" placeholder="Username or Email">
+  <input type="password" id="loginPass" class="input-bar" placeholder="Password">
+  <button class="bar green" id="loginBtn">Login</button>
+</div>
+
+<!-- Register Page -->
+<div id="registerPage" class="hidden">
+  <input type="text" id="regUser" class="input-bar" placeholder="Username">
+  <input type="email" id="regEmail" class="input-bar" placeholder="Email">
+  <input type="password" id="regPass" class="input-bar" placeholder="Password">
+  <button class="bar green" id="registerBtn">Create Account</button>
+</div>
+
+<!-- Dashboard Page -->
+<div id="dashboardPage" class="hidden">
+  <button class="bar green" id="searchUsersBtn">Search Users</button>
+  <button class="bar green" id="profileEditBtn">Profile / Edit</button>
+
+  <div class="chat-card" id="chatList"></div>
+</div>
+
+<!-- Search Page -->
+<div id="searchPage" class="hidden">
+  <input type="text" id="searchInput" class="input-bar" placeholder="Search users">
+  <div id="liveResults"></div>
+  <div id="prevSearches"></div>
+</div>
+
+<!-- Other User Profile Page -->
+<div id="userProfilePage" class="hidden">
+  <div class="input-bar" id="profileUsername"></div>
+  <div class="input-bar" id="profileBio"></div>
+  <div class="input-bar" id="profileFriends"></div>
+  <button class="bar green" id="chatUserBtn">Chat</button>
+</div>
+
+<!-- Profile Edit Page -->
+<div id="profileEditPage" class="hidden">
+  <input type="text" id="editUsername" class="input-bar">
+  <input type="text" id="editBio" class="input-bar">
+  <div class="input-bar" id="editFriends"></div>
+  <button class="bar green" id="saveProfileBtn">Edit Profile</button>
+  <button class="bar red" id="logoutBtn">Logout</button>
+  <button class="bar red" id="deleteAccountBtn">Delete Account</button>
+</div>
+
+<!-- Chat Page -->
+<div id="chatPage" class="hidden">
+  <div class="input-bar" id="chatHeader">Chat with <span id="chatWith"></span> <span class="dot offline"></span></div>
+  <div class="chat-container" id="chatMessages"></div>
+  <input type="text" id="chatInput" class="input-bar" placeholder="Type message">
+</div>
+
+</div>
+
+<script>
+// Firebase Config (replace with your info)
+const firebaseConfig = {
+  apiKey: "AIzaSyA3a1_RutGF0KtXOyP9vKztvpQxyoZbi2o",
+  authDomain: "diagonal-158ce.firebaseapp.com",
+  projectId: "diagonal-158ce",
+  storageBucket: "diagonal-158ce.firebasestorage.app",
+  messagingSenderId: "621466348404",
+  appId: "1:621466348404:web:a40540c048943f4381da21"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// Page elements
+const welcomePage = document.getElementById('welcomePage');
+const loginPage = document.getElementById('loginPage');
+const registerPage = document.getElementById('registerPage');
+const dashboardPage = document.getElementById('dashboardPage');
+const profileEditPage = document.getElementById('profileEditPage');
+const searchPage = document.getElementById('searchPage');
+const userProfilePage = document.getElementById('userProfilePage');
+const chatPage = document.getElementById('chatPage');
+
+const toLogin = document.getElementById('toLogin');
+const toRegister = document.getElementById('toRegister');
+
+const loginUser = document.getElementById('loginUser');
+const loginPass = document.getElementById('loginPass');
+const loginBtn = document.getElementById('loginBtn');
+
+const regUser = document.getElementById('regUser');
+const regEmail = document.getElementById('regEmail');
+const regPass = document.getElementById('regPass');
+const registerBtn = document.getElementById('registerBtn');
+
+const profileEditBtn = document.getElementById('profileEditBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+const deleteAccountBtn = document.getElementById('deleteAccountBtn');
+const saveProfileBtn = document.getElementById('saveProfileBtn');
+const editUsername = document.getElementById('editUsername');
+const editBio = document.getElementById('editBio');
+const editFriends = document.getElementById('editFriends');
+
+const searchUsersBtn = document.getElementById('searchUsersBtn');
+const searchInput = document.getElementById('searchInput');
+const liveResults = document.getElementById('liveResults');
+const prevSearches = document.getElementById('prevSearches');
+
+const profileUsername = document.getElementById('profileUsername');
+const profileBio = document.getElementById('profileBio');
+const profileFriends = document.getElementById('profileFriends');
+const chatUserBtn = document.getElementById('chatUserBtn');
+
+const chatHeader = document.getElementById('chatHeader');
+const chatWith = document.getElementById('chatWith');
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+
+let currentChatUser = null;
+
+// ---------- Navigation ----------
+toLogin.addEventListener('click', ()=>{ showPage(loginPage); });
+toRegister.addEventListener('click', ()=>{ showPage(registerPage); });
+profileEditBtn.addEventListener('click', ()=>{ showPage(profileEditPage); loadProfileEdit(); });
+searchUsersBtn.addEventListener('click', ()=>{ showPage(searchPage); });
+
+// ---------- Helper ----------
+function showPage(page){
+  [welcomePage, loginPage, registerPage, dashboardPage, profileEditPage, searchPage, userProfilePage, chatPage]
+    .forEach(p=>p.classList.add('hidden'));
+  page.classList.remove('hidden');
+}
+
+// ---------- Auth ----------
+auth.onAuthStateChanged(user=>{
+  if(user){
+    showPage(dashboardPage);
+    loadDashboardChats();
+    loadProfileEdit();
+  }else{
+    showPage(welcomePage);
+  }
+});
+
+// ---------- Login ----------
+loginBtn.addEventListener('click', async ()=>{
+  const input = loginUser.value.trim();
+  const pass = loginPass.value.trim();
+  if(!input || !pass){ alert("Enter all fields"); return; }
+
+  try{
+    const snap = await db.collection('users').where('username','==',input).get();
+    let emailToLogin = input;
+    if(!snap.empty){ emailToLogin = snap.docs[0].data().email; }
+    await auth.signInWithEmailAndPassword(emailToLogin, pass);
+    loginUser.value = loginPass.value = '';
+  } catch(e){ alert(e.message); }
+});
+
+// ---------- Register ----------
+registerBtn.addEventListener('click', async ()=>{
+  const username = regUser.value.trim();
+  const email = regEmail.value.trim();
+  const pass = regPass.value.trim();
+  if(!username || !email || !pass){ alert("Enter all fields"); return; }
+
+  const snap = await db.collection('users').where('username','==',username).get();
+  if(!snap.empty){ alert("Username already exists"); return; }
+
+  try{
+    const userCred = await auth.createUserWithEmailAndPassword(email, pass);
+    const uid = userCred.user.uid;
+    await db.collection('users').doc(uid).set({
+      username: username,
+      email: email,
+      bio: "",
+      friendsCount: 0,
+      online: true,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    regUser.value = regEmail.value = regPass.value = '';
+  } catch(e){ alert(e.message); }
+});
+
+// ---------- Dashboard ----------
+function loadDashboardChats(){
+  const chatList = document.getElementById('chatList');
+  db.collection('users').onSnapshot(snapshot=>{
+    chatList.innerHTML = '';
+    snapshot.forEach(doc=>{
+      const data = doc.data();
+      if(doc.id === auth.currentUser.uid) return;
+      const bar = document.createElement('div');
+      bar.className = 'chat-bar';
+      bar.textContent = data.username;
+      const dot = document.createElement('span');
+      dot.className = 'dot ' + (data.online?'online':'offline');
+      bar.appendChild(dot);
+      bar.addEventListener('click', ()=>openUserProfile(doc.id));
+      chatList.appendChild(bar);
+    });
+  });
+}
+
+// ---------- Profile Edit ----------
+function loadProfileEdit(){
+  const uid = auth.currentUser.uid;
+  db.collection('users').doc(uid).get().then(doc=>{
+    const data = doc.data();
+    editUsername.value = data.username;
+    editBio.value = data.bio;
+    editFriends.textContent = `Friends: ${data.friendsCount}`;
+  });
+}
+
+saveProfileBtn.addEventListener('click', async ()=>{
+  const uid = auth.currentUser.uid;
+  const newUsername = editUsername.value.trim();
+  const snap = await db.collection('users').where('username','==',newUsername).get();
+  if(!snap.empty && snap.docs[0].id !== uid){ alert("Username already exists"); return; }
+
+  db.collection('users').doc(uid).update({
+    username: newUsername,
+    bio: editBio.value.trim()
+  }).then(()=> alert("Profile updated"));
+});
+
+logoutBtn.addEventListener('click', ()=>{ auth.signOut(); });
+deleteAccountBtn.addEventListener('click', async ()=>{
+  const uid = auth.currentUser.uid;
+  try{
+    await db.collection('users').doc(uid).delete();
+    await auth.currentUser.delete();
+  }catch(e){ alert(e.message); }
+});
+
+// ---------- Search ----------
+searchInput.addEventListener('input', async ()=>{
+  const term = searchInput.value.trim().toLowerCase();
+  liveResults.innerHTML = '';
+  if(!term) return;
+  const users = await db.collection('users').get();
+  users.forEach(doc=>{
+    const data = doc.data();
+    if(data.username.toLowerCase().includes(term) && doc.id !== auth.currentUser.uid){
+      const bar = document.createElement('div');
+      bar.className = 'chat-bar';
+      bar.textContent = data.username;
+      const dot = document.createElement('span');
+      dot.className = 'dot ' + (data.online?'online':'offline');
+      bar.appendChild(dot);
+      bar.addEventListener('click', ()=>openUserProfile(doc.id));
+      liveResults.appendChild(bar);
+    }
+  });
+});
+
+// ---------- Other User Profile ----------
+function openUserProfile(uid){
+  currentChatUser = uid;
+  db.collection('users').doc(uid).get().then(doc=>{
+    const data = doc.data();
+    profileUsername.textContent = data.username;
+    profileBio.textContent = `Bio: ${data.bio}`;
+    profileFriends.textContent = `Friends: ${data.friendsCount}`;
+    const dot = document.createElement('span');
+    dot.className = 'dot ' + (data.online?'online':'offline');
+    profileUsername.appendChild(dot);
+    showPage(userProfilePage);
+  });
+}
+
+chatUserBtn.addEventListener('click', ()=>{ if(currentChatUser) openChat(currentChatUser); });
+
+// ---------- Chat Page ----------
+function openChat(uid){
+  showPage(chatPage);
+  chatWith.textContent = '';
+  db.collection('users').doc(uid).get().then(doc=>{ chatWith.textContent = doc.data().username; });
+  chatMessages.innerHTML = '';
+
+  db.collection('messages').where('participants','array-contains',auth.currentUser.uid)
+    .orderBy('timestamp')
+    .onSnapshot(snapshot=>{
+      chatMessages.innerHTML = '';
+      snapshot.forEach(doc=>{
+        const data = doc.data();
+        if(data.participants.includes(uid)){
+          const div = document.createElement('div');
+          div.className = 'chat-bubble ' + (data.sender === auth.currentUser.uid ? 'chat-you':'chat-other');
+          div.textContent = data.text;
+          chatMessages.appendChild(div);
+        }
+      });
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+}
+
+chatInput.addEventListener('keypress', async (e)=>{
+  if(e.key === 'Enter' && chatInput.value.trim() && currentChatUser){
+    await db.collection('messages').add({
+      participants: [auth.currentUser.uid, currentChatUser],
+      sender: auth.currentUser.uid,
+      text: chatInput.value.trim(),
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    chatInput.value = '';
+  }
+});
+</script>
+
+</body>
+</html>
